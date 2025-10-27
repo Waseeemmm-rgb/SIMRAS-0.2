@@ -1,96 +1,148 @@
+# ==========================================================
+#  OQBI SMART PLANT DASHBOARD
+#  Developed by: Mohammed Waseem Attar
+# ==========================================================
+
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from simras_logic import load_data, predict_next_value, detect_risk
+import numpy as np
+import plotly.express as px
+from datetime import datetime, timedelta
+from sklearn.linear_model import LinearRegression
 
-st.set_page_config(page_title="SIMRAS Industrial Dashboard", layout="wide")
+# ==========================================================
+#  DATA SIMULATION (Realistic Sensor Data)
+# ==========================================================
+def generate_industrial_data(days=30):
+    start_date = datetime.now() - timedelta(days=days)
+    dates = [start_date + timedelta(days=i) for i in range(days)]
 
-st.title("🏭 SIMRAS - Smart Industrial Monitoring & Risk Alert System")
+    data = {
+        'Date': dates,
+        'Temperature (°C)': np.random.uniform(70, 120, days),
+        'Pressure (bar)': np.random.uniform(10, 30, days),
+        'Flow Rate (m³/h)': np.random.uniform(200, 500, days),
+        'Vibration (Hz)': np.random.uniform(5, 20, days),
+        'Energy (GJ)': np.random.uniform(500, 1200, days),
+        'Emissions (%)': np.random.uniform(2, 10, days),
+    }
 
-st.write("""
-This prototype helps automate monitoring of industrial parameters like temperature, pressure, 
-and flow rate — predicting future values and detecting risks automatically.
-""")
+    df = pd.DataFrame(data)
+    return df
 
-# ---------------------------------------------
-# Load and Display Data
-# ---------------------------------------------
-df = load_data()
-st.subheader("📊 Live Sensor Data")
-st.dataframe(df)
 
-# ---------------------------------------------
-# Data Visualization
-# ---------------------------------------------
-col1, col2 = st.columns(2)
+# ==========================================================
+#  RISK CALCULATION SYSTEM
+# ==========================================================
+def calculate_risk(df):
+    df['Risk Score'] = (
+        0.3 * (df['Temperature (°C)'] / 120) +
+        0.25 * (df['Pressure (bar)'] / 30) +
+        0.15 * (df['Flow Rate (m³/h)'] / 500) +
+        0.15 * (df['Vibration (Hz)'] / 20) +
+        0.15 * (df['Emissions (%)'] / 10)
+    )
 
-with col1:
-    st.write("### Temperature Trend")
-    plt.figure()
-    plt.plot(df["Date"], df["Temperature"], marker="o")
-    plt.xlabel("Date")
-    plt.ylabel("Temperature (°C)")
-    plt.title("Temperature Over Time")
-    st.pyplot(plt)
+    df['Risk Level'] = pd.cut(
+        df['Risk Score'],
+        bins=[0, 0.5, 0.8, 1],
+        labels=['Safe', 'Warning', 'High Risk']
+    )
+    return df
 
-with col2:
-    st.write("### Pressure Trend")
-    plt.figure()
-    plt.plot(df["Date"], df["Pressure"], marker="o", color="orange")
-    plt.xlabel("Date")
-    plt.ylabel("Pressure (bar)")
-    plt.title("Pressure Over Time")
-    st.pyplot(plt)
 
-# ---------------------------------------------
-# Predictions & Risk Detection
-# ---------------------------------------------
-st.subheader("🔮 Predictions")
+# ==========================================================
+#  FORECASTING (Predict Next 3 Days)
+# ==========================================================
+def forecast_trend(df, column, days_ahead=3):
+    model = LinearRegression()
+    X = np.arange(len(df)).reshape(-1, 1)
+    y = df[column].values
+    model.fit(X, y)
+    future_X = np.arange(len(df), len(df) + days_ahead).reshape(-1, 1)
+    predictions = model.predict(future_X)
+    return predictions
 
-pred_temp = predict_next_value(df, "Temperature")
-pred_press = predict_next_value(df, "Pressure")
-pred_flow = predict_next_value(df, "FlowRate")
 
-st.write(f"🌡️ **Predicted Next Temperature:** {pred_temp} °C")
-st.write(f"🧯 **Predicted Next Pressure:** {pred_press} bar")
-st.write(f"💧 **Predicted Next Flow Rate:** {pred_flow} m³/hr")
+# ==========================================================
+#  STREAMLIT DASHBOARD LAYOUT
+# ==========================================================
+st.set_page_config(page_title="OQBI Smart Plant Dashboard", layout="wide")
 
-risk = detect_risk(df)
-st.warning(risk if "⚠️" in risk else risk)
+st.title("🏭 OQBI Smart Plant Dashboard")
+st.markdown("Real-time Industrial Monitoring with Predictive Insights")
+st.markdown("Developed by **Mohammed Waseem Attar**")
 
-st.success("✅ Analysis complete. Use this dashboard to monitor and predict industrial behavior.")
+# Generate data and calculate risk
+df = generate_industrial_data(30)
+df = calculate_risk(df)
 
-# ---------------------------------------------
-# 💬 AI Chatbot Section
-# ---------------------------------------------
+# ==========================================================
+#  KPI METRICS
+# ==========================================================
+col1, col2, col3 = st.columns(3)
+col1.metric("Average Temperature", f"{df['Temperature (°C)'].mean():.1f} °C")
+col2.metric("Average Pressure", f"{df['Pressure (bar)'].mean():.1f} bar")
+col3.metric("Current Risk Level", df['Risk Level'].iloc[-1])
+
 st.divider()
-st.header("💬 SIMRAS AI Assistant")
-st.write("Ask me anything about industrial data, risks, or predictions.")
 
-if "messages" not in st.session_state:
-    st.session_state["messages"] = []
+# ==========================================================
+#  TEMPERATURE TREND WITH FORECAST
+# ==========================================================
+st.subheader("🌡 Temperature Trend (Past 30 Days + Forecast)")
 
-# Display messages
-for msg in st.session_state["messages"]:
-    st.markdown(f"**{msg['role'].capitalize()}:** {msg['text']}")
+pred_temp = forecast_trend(df, 'Temperature (°C)')
+future_dates = pd.date_range(df['Date'].iloc[-1] + timedelta(days=1), periods=3)
 
-# Input box
-user_input = st.text_input("Type your message here:")
+fig = px.line(df, x='Date', y='Temperature (°C)', title="Temperature Over Time")
+fig.add_scatter(x=future_dates, y=pred_temp, mode='lines+markers', name='Forecast', line=dict(dash='dash'))
+st.plotly_chart(fig, use_container_width=True)
 
-if st.button("Send") and user_input:
-    st.session_state["messages"].append({"role": "user", "text": user_input})
+# ==========================================================
+#  RISK OVERVIEW
+# ==========================================================
+st.subheader("⚠️ Risk Overview (Based on All Parameters)")
 
-    # Basic AI responses
-    if "risk" in user_input.lower():
-        reply = "Based on current readings, the system detects high pressure and temperature risk."
-    elif "trend" in user_input.lower():
-        reply = "Temperature and pressure show an upward trend this week."
-    elif "flow" in user_input.lower():
-        reply = "Flow rate fluctuations may indicate valve irregularities."
-    elif "predict" in user_input.lower():
-        reply = f"The next temperature is expected around {pred_temp}°C, pressure {pred_press} bar, and flow {pred_flow} m³/hr."
-    else:
-        reply = "I'm SIMRAS — your AI assistant for industrial insights. Try asking about risk, flow, or predictions."
+risk_fig = px.scatter(
+    df, x='Date', y='Risk Score', color='Risk Level',
+    color_discrete_map={'Safe': 'green', 'Warning': 'orange', 'High Risk': 'red'},
+    title="Daily Risk Score Levels"
+)
+st.plotly_chart(risk_fig, use_container_width=True)
 
-    st.session_state["messages"].append({"role": "assistant", "text": reply})
-    st.rerun()
+st.divider()
+
+# ==========================================================
+#  WHAT-IF SCENARIO ANALYSIS
+# ==========================================================
+st.subheader("🔮 What-If Analysis — Simulate Future Scenarios")
+
+col1, col2, col3 = st.columns(3)
+temp_input = col1.slider("Set Desired Temperature (°C)", 70, 120, 90)
+pressure_input = col2.slider("Set Desired Pressure (bar)", 10, 30, 20)
+flow_input = col3.slider("Set Desired Flow (m³/h)", 200, 500, 300)
+
+sim_risk = (0.3 * (temp_input / 120) +
+            0.25 * (pressure_input / 30) +
+            0.15 * (flow_input / 500))
+
+st.write(f"**Predicted Risk Score:** {sim_risk:.2f}")
+
+if sim_risk < 0.5:
+    st.success("✅ Plant Status: SAFE")
+elif sim_risk < 0.8:
+    st.warning("⚠️ Plant Status: WARNING")
+else:
+    st.error("🔥 Plant Status: HIGH RISK")
+
+st.divider()
+
+# ==========================================================
+#  EXPORT REPORT
+# ==========================================================
+st.subheader("📤 Export Plant Performance Report")
+csv = df.to_csv(index=False).encode('utf-8')
+st.download_button("⬇️ Download CSV Report", csv, "plant_report.csv", "text/csv")
+
+st.caption("© 2025 OQBI Prototype — Developed by Mohammed Waseem Attar")
