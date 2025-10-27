@@ -139,7 +139,7 @@ if st.sidebar.button("Append new live reading (next day)"):
     # append
     st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_row])], ignore_index=True)
     st.session_state.df = detect_anomalies(st.session_state.df)
-    st.experimental_rerun()
+    st.rerun()
 
 # Main view: latest snapshot
 st.subheader("Live Snapshot — Latest Reading")
