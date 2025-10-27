@@ -1,5 +1,7 @@
-streamlit>=1.20.0
+streamlit
 pandas
 numpy
-plotly
-scikit-learn
+matplotlib
+transformers
+huggingface_hub
+torch
