@@ -1,7 +1,7 @@
 streamlit==1.28.0
 pandas
 numpy
-matplotlib
-transformers
-huggingface_hub
-torch
+matplotlib==3.7.1
+torch==2.1.0
+transformers==4.41.0
+huggingface_hub==0.18.1
