@@ -1,31 +1,30 @@
-# ----------------------------
-# SIMRAS Industrial AI Dashboard
-# ----------------------------
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-from huggingface_hub import login
 
 # ----------------------------
-# HUGGING FACE LOGIN
+# HUGGING FACE CHATBOT SETUP
 # ----------------------------
-login("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")  # your token
-
-# Load Hugging Face chatbot model
 MODEL_NAME = "facebook/blenderbot-400M-distill"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
+hf_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")  # must be set in Streamlit Secrets
+
+if hf_token is None:
+    st.error("⚠️ Hugging Face token not found! Set it in Streamlit Secrets.")
+else:
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_auth_token=hf_token)
+    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, use_auth_token=hf_token)
 
 # ----------------------------
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # ----------------------------
 st.set_page_config(page_title="SIMRAS Industrial AI Dashboard", layout="wide")
 st.title("🧠 SIMRAS Industrial AI Dashboard")
 
 # ----------------------------
-# PARAMETERS AND LIMITS
+# INDUSTRIAL PARAMETERS
 # ----------------------------
 params = {
     "Pressure (bar)": (20, 50),
@@ -39,7 +38,9 @@ params = {
     "Production Unit (ton/day)": (50, 500)
 }
 
-# Initialize simulated database
+# ----------------------------
+# INITIALIZE SIMULATED DATABASE
+# ----------------------------
 if "data" not in st.session_state:
     st.session_state.data = pd.DataFrame(columns=["Timestamp"] + list(params.keys()))
 
@@ -66,17 +67,18 @@ st.subheader("📊 Real-Time Sensor Data")
 st.dataframe(st.session_state.data.tail(10), use_container_width=True)
 
 # ----------------------------
-# AI INSIGHT SIMULATION
+# AI INSIGHTS & PREDICTIVE ALERTS
 # ----------------------------
-st.subheader("💡 AI Insights")
+st.subheader("💡 AI Insights & Alerts")
 if len(st.session_state.data) > 0:
     latest = st.session_state.data.iloc[-1]
     for param, (low, high) in params.items():
         val = latest[param]
-        if val < low or val > high:
-            st.error(f"⚠️ {param} out of safe range! Value: {val}")
+        # Predictive alert: if value > 95% of high or < 105% of low
+        if val < low * 1.05 or val > high * 0.95:
+            st.error(f"⚠️ {param} near unsafe range! Current Value: {val}")
         else:
-            st.info(f"{param} is within normal range: {val}")
+            st.info(f"{param} within safe range: {val}")
 else:
     st.info("No readings yet. Click 'Generate New Live Reading'.")
 
@@ -112,29 +114,29 @@ if st.button("🧾 Export CSV Report"):
 # ----------------------------
 st.subheader("💬 SIMRAS AI Assistant (Chatbot)")
 
-# Initialize chat history
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+if hf_token is not None:
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
 
-user_input = st.text_input("Ask me anything:")
+    user_input = st.text_input("Ask me anything:")
 
-if st.button("Send"):
-    if user_input:
-        # Encode input
-        inputs = tokenizer(user_input + tokenizer.eos_token, return_tensors="pt")
-        reply_ids = model.generate(**inputs, max_new_tokens=100)
-        reply = tokenizer.decode(reply_ids[0], skip_special_tokens=True)
+    if st.button("Send"):
+        if user_input:
+            # Encode input
+            inputs = tokenizer(user_input + tokenizer.eos_token, return_tensors="pt")
+            reply_ids = model.generate(**inputs, max_new_tokens=100)
+            reply = tokenizer.decode(reply_ids[0], skip_special_tokens=True)
 
-        # Save history
-        st.session_state.chat_history.append(("You", user_input))
-        st.session_state.chat_history.append(("AI", reply))
+            # Save chat history
+            st.session_state.chat_history.append(("You", user_input))
+            st.session_state.chat_history.append(("AI", reply))
 
-# Display chat history
-for speaker, message in st.session_state.chat_history:
-    if speaker == "You":
-        st.markdown(f"**You:** {message}")
-    else:
-        st.markdown(f"**AI:** {message}")
+    # Display chat history
+    for speaker, message in st.session_state.chat_history:
+        if speaker == "You":
+            st.markdown(f"**You:** {message}")
+        else:
+            st.markdown(f"**AI:** {message}")
 
 # ----------------------------
 # FOOTER
@@ -142,5 +144,5 @@ for speaker, message in st.session_state.chat_history:
 st.markdown("""
 ---
 **SIMRAS v1.0** — Developed by *Mohammed Waseem Attar*  
-Demo Prototype for **OQBI Oman** — Combining industrial monitoring with AI chatbot assistance.
+Demo Prototype for **OQBI Oman** — Industrial monitoring + AI chatbot.
 """)
