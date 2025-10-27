@@ -1,3 +1,6 @@
+# ----------------------------
+# SIMRAS Industrial AI Dashboard
+# ----------------------------
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,13 +13,13 @@ from huggingface_hub import login
 # ----------------------------
 login("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")  # your token
 
-# Load chatbot model
+# Load Hugging Face chatbot model
 MODEL_NAME = "facebook/blenderbot-400M-distill"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 
 # ----------------------------
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ----------------------------
 st.set_page_config(page_title="SIMRAS Industrial AI Dashboard", layout="wide")
 st.title("🧠 SIMRAS Industrial AI Dashboard")
@@ -50,7 +53,6 @@ def simulate_live_data():
         new_entry[param] = round(value, 2)
     return new_entry
 
-# Add new reading
 if st.button("📈 Generate New Live Reading"):
     new_data = simulate_live_data()
     st.session_state.data = pd.concat([st.session_state.data, pd.DataFrame([new_data])], ignore_index=True)
@@ -67,8 +69,16 @@ st.dataframe(st.session_state.data.tail(10), use_container_width=True)
 # AI INSIGHT SIMULATION
 # ----------------------------
 st.subheader("💡 AI Insights")
-st.info("Pressure is trending up. Risk of overheating in 2 hours. Recommend adjusting valves.")
-st.info("Flow rates are within limits. Energy consumption optimal.")
+if len(st.session_state.data) > 0:
+    latest = st.session_state.data.iloc[-1]
+    for param, (low, high) in params.items():
+        val = latest[param]
+        if val < low or val > high:
+            st.error(f"⚠️ {param} out of safe range! Value: {val}")
+        else:
+            st.info(f"{param} is within normal range: {val}")
+else:
+    st.info("No readings yet. Click 'Generate New Live Reading'.")
 
 # ----------------------------
 # TREND VISUALIZATION
@@ -82,6 +92,7 @@ if len(st.session_state.data) > 0:
     ax.set_ylabel(param_choice)
     ax.set_title(f"{param_choice} Trend")
     ax.grid(True)
+    plt.xticks(rotation=45)
     st.pyplot(fig)
 
 # ----------------------------
@@ -105,7 +116,7 @@ st.subheader("💬 SIMRAS AI Assistant (Chatbot)")
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-user_input = st.text_input("Ask me anything about industrial processes:")
+user_input = st.text_input("Ask me anything:")
 
 if st.button("Send"):
     if user_input:
